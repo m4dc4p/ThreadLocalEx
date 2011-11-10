@@ -63,25 +63,26 @@ namespace ThreadLocalEx
 
     public class ThreadLocalEx<T> : IDisposable
     {
-        sealed class Box<T>
-        {
-            public T Val;
-            public Box() {}
+        [ThreadStatic]
+        static Box<T> _slot;
 
-            public Box(T v)
+        sealed class H<T>
+        {
+            public H(T x)
             {
-                Val = v;
+                v = x;
             }
+
+            public T v;
+        }
+
+        struct Box<T>
+        {
+            public H<T> h;
         }
 
         Func<T> _valueFactory;
         Exception _cached;
-        static LocalDataStoreSlot _slot;
-
-        static ThreadLocalEx()
-        {
-            _slot = Thread.AllocateDataSlot();
-        }
 
         public ThreadLocalEx() 
         {
@@ -107,7 +108,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                return Thread.GetData(_slot) != null;
+                return _slot.h != null;
             }
         }
 
@@ -116,37 +117,33 @@ namespace ThreadLocalEx
         {
             get
             {
-                try
+                if(_slot.h != null)
+                    return _slot.h.v;
+
+                if(_valueFactory != null)
                 {
-                    return ((Box<T>) Thread.GetData(_slot)).Val;
-                }
-                catch(NullReferenceException)
-                {
-                    if(_valueFactory != null)
+                    if(_cached != null)
+                        throw _cached;
+
+                    try
                     {
-                        if(_cached != null)
-                            throw _cached;
-
-                        try
-                        {
-                            Thread.SetData(_slot, new Box<T>(_valueFactory()));
-                        }
-                        catch(Exception e)
-                        {
-                            _cached = e;
-                            throw;
-                        }
+                        _slot.h = new H<T>(_valueFactory());
                     }
-                    else
-                        Thread.SetData(_slot, new Box<T>());
-
-                    return ((Box<T>) Thread.GetData(_slot)).Val;
+                    catch(Exception e)
+                    {
+                        _cached = e;
+                        throw;
+                    }
                 }
+                else
+                    _slot.h = new H<T>(default(T));
+
+                return _slot.h.v;
             }
 
             set
             {
-                Thread.SetData(_slot, new Box<T>(value));
+                _slot.h = new H<T>(value);
             }
         }
 
