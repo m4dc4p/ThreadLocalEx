@@ -64,9 +64,18 @@ namespace ThreadLocalEx
     public class ThreadLocalEx<T> : IDisposable
     {
         [ThreadStatic]
-        static T[] _slot;
+        static Box<T>? _slot;
         Func<T> _valueFactory;
         Exception _cached;
+
+        struct Box<T>
+        {
+            public T v;
+            public Box(T x)
+            {
+                v = x;
+            }
+        }
 
         public ThreadLocalEx() 
         {
@@ -92,7 +101,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                return _slot != null;
+                return _slot.HasValue;
             }
         }
 
@@ -101,37 +110,33 @@ namespace ThreadLocalEx
         {
             get
             {
-                try
+                if(_slot.HasValue)
+                    return _slot.Value.v;
+
+                if(_valueFactory != null)
                 {
-                    return _slot[0];
-                }
-                catch(NullReferenceException)
-                {
-                    if(_valueFactory != null)
+                    if(_cached != null)
+                        throw _cached;
+
+                    try
                     {
-                        if(_cached != null)
-                            throw _cached;
-
-                        try
-                        {
-                            _slot = new T[] { _valueFactory() };
-                        }
-                        catch(Exception e)
-                        {
-                            _cached = e;
-                            throw;
-                        }
+                        _slot = new Box<T>(_valueFactory());
                     }
-                    else
-                        _slot = new T[] { default(T) };
-
-                    return _slot[0];
+                    catch(Exception e)
+                    {
+                        _cached = e;
+                        throw;
+                    }
                 }
+                else
+                    _slot = new Box<T>(default(T));
+
+                return _slot.Value.v;
             }
 
             set
             {
-                _slot = new T[] { value };
+                _slot = new Box<T>(value);
             }
         }
 
