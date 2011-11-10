@@ -110,32 +110,28 @@ namespace ThreadLocalEx
         {
             get
             {
-                try
-                {
+                if(_slot != null)
                     return _slot.v;
-                }
-                catch(NullReferenceException)
+
+                if(_valueFactory != null)
                 {
-                    if(_valueFactory != null)
+                    if(_cached != null)
+                        throw _cached;
+
+                    try
                     {
-                        if(_cached != null)
-                            throw _cached;
-
-                        try
-                        {
-                            _slot = new Box(_valueFactory());
-                        }
-                        catch(Exception e)
-                        {
-                            _cached = e;
-                            throw;
-                        }
+                        _slot = new Box(_valueFactory());
                     }
-                    else
-                        _slot = new Box(default(T));
-
-                    return _slot.v;
+                    catch(Exception e)
+                    {
+                        _cached = e;
+                        throw;
+                    }
                 }
+                else
+                    _slot = new Box(default(T));
+
+                return _slot.v;
             }
 
             set
