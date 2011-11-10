@@ -24,8 +24,6 @@ namespace ThreadLocalEx
             int x = 0, y = 0;
 
             Stopwatch tlW = new Stopwatch(), tlxW = new Stopwatch();
-            Console.WriteLine("Stopwatch frequency: {0}, HighRes: {1}",
-                Stopwatch.Frequency, Stopwatch.IsHighResolution);
 
             int COUNT = 1000000, INTERVAL = 100000;
             Parallel.Invoke(() => Parallel.For(0, COUNT, delegate(int k) {
@@ -67,8 +65,8 @@ namespace ThreadLocalEx
     {
         [ThreadStatic]
         static Box<T> _result;
-
-        class Box<T>
+        
+        sealed class Box<T>
         {
             public T Val;
             public Box() {}
