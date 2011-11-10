@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -56,27 +58,19 @@ namespace ThreadLocalEx
 
     public class ThreadLocalEx<T> : IDisposable
     {
-        [ThreadStatic]
-        static Box _slot;
+        ConcurrentDictionary<int, T> _dict;
         Func<T> _valueFactory;
         Exception _cached;
         bool _creating;
 
-        class Box
-        {
-            public T v;
-            public Box(T x)
-            {
-                v = x;
-            }
-        }
-
         public ThreadLocalEx() 
         {
+            _dict = new ConcurrentDictionary<int, T>();
         }
 
         public ThreadLocalEx(Func<T> valueFactory)
         {
+            _dict = new ConcurrentDictionary<int, T>();
             _valueFactory = valueFactory;
         }
 
@@ -84,7 +78,6 @@ namespace ThreadLocalEx
         {
             Dispose(true);
         }
-
 
         protected virtual void Dispose(bool disposing)
         {
@@ -95,7 +88,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                return _slot != null;
+                return _dict.ContainsKey(Thread.CurrentThread.ManagedThreadId);
             }
         }
 
@@ -106,9 +99,9 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _slot.v;
+                    return _dict[Thread.CurrentThread.ManagedThreadId];
                 }
-                catch(NullReferenceException)
+                catch(KeyNotFoundException)
                 {
                     if(_creating)
                         _cached = new InvalidOperationException();
@@ -121,7 +114,7 @@ namespace ThreadLocalEx
                     {
                         try
                         {
-                            _slot = new Box(_valueFactory());
+                            _dict[Thread.CurrentThread.ManagedThreadId] = _valueFactory();
                         }
                         catch(Exception e)
                         {
@@ -130,16 +123,16 @@ namespace ThreadLocalEx
                         }
                     }
                     else
-                        _slot = new Box(default(T));
+                        _dict[Thread.CurrentThread.ManagedThreadId] = default(T);
 
                     _creating = false;
-                    return _slot.v;
+                    return _dict[Thread.CurrentThread.ManagedThreadId];
                 }
             }
 
             set
             {
-                _slot = new Box(value);
+                _dict[Thread.CurrentThread.ManagedThreadId] = value;
             }
         }
 
