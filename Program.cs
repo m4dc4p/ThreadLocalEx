@@ -66,19 +66,13 @@ namespace ThreadLocalEx
         [ThreadStatic]
         static Box<T> _slot;
 
-        sealed class H<T>
+        sealed class Box<T>
         {
-            public H(T x)
+            public T v;
+            public Box(T x)
             {
                 v = x;
             }
-
-            public T v;
-        }
-
-        struct Box<T>
-        {
-            public H<T> h;
         }
 
         Func<T> _valueFactory;
@@ -108,7 +102,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                return _slot.h != null;
+                return _slot != null;
             }
         }
 
@@ -117,8 +111,8 @@ namespace ThreadLocalEx
         {
             get
             {
-                if(_slot.h != null)
-                    return _slot.h.v;
+                if(_slot != null)
+                    return _slot.v;
 
                 if(_valueFactory != null)
                 {
@@ -127,7 +121,7 @@ namespace ThreadLocalEx
 
                     try
                     {
-                        _slot.h = new H<T>(_valueFactory());
+                        _slot = new Box<T>(_valueFactory());
                     }
                     catch(Exception e)
                     {
@@ -136,14 +130,14 @@ namespace ThreadLocalEx
                     }
                 }
                 else
-                    _slot.h = new H<T>(default(T));
+                    _slot = new Box<T>(default(T));
 
-                return _slot.h.v;
+                return _slot.v;
             }
 
             set
             {
-                _slot.h = new H<T>(value);
+                _slot = new Box<T>(value);
             }
         }
 
