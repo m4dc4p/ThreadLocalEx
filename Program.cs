@@ -64,11 +64,11 @@ namespace ThreadLocalEx
     public class ThreadLocalEx<T> : IDisposable
     {
         [ThreadStatic]
-        static Box<T>? _slot;
+        static Box? _slot;
         Func<T> _valueFactory;
         Exception _cached;
 
-        struct Box<T>
+        struct Box
         {
             public T v;
             public Box(T x)
@@ -120,7 +120,7 @@ namespace ThreadLocalEx
 
                     try
                     {
-                        _slot = new Box<T>(_valueFactory());
+                        _slot = new Box(_valueFactory());
                     }
                     catch(Exception e)
                     {
@@ -129,14 +129,14 @@ namespace ThreadLocalEx
                     }
                 }
                 else
-                    _slot = new Box<T>(default(T));
+                    _slot = new Box(default(T));
 
                 return _slot.Value.v;
             }
 
             set
             {
-                _slot = new Box<T>(value);
+                _slot = new Box(value);
             }
         }
 
