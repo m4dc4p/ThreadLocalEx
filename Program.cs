@@ -65,14 +65,18 @@ namespace ThreadLocalEx
     {
         [ThreadStatic]
         static Box _slot;
+
         Func<T> _valueFactory;
         Exception _cached;
 
-        class Box
+        struct Box
         {
+            public bool initialized;
             public T v;
+
             public Box(T x)
             {
+                initialized = true;
                 v = x;
             }
         }
@@ -101,7 +105,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                return _slot != null;
+                return _slot.initialized;
             }
         }
 
@@ -110,7 +114,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                if(_slot != null)
+                if(_slot.initialized)
                     return _slot.v;
 
                 if(_valueFactory != null)
