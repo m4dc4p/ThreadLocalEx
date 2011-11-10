@@ -65,18 +65,15 @@ namespace ThreadLocalEx
     {
         [ThreadStatic]
         static Box _slot;
-
         Func<T> _valueFactory;
         Exception _cached;
+        bool _creating;
 
-        struct Box
+        class Box
         {
-            public bool initialized;
             public T v;
-
             public Box(T x)
             {
-                initialized = true;
                 v = x;
             }
         }
@@ -105,7 +102,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                return _slot.initialized;
+                return _slot != null;
             }
         }
 
@@ -114,28 +111,37 @@ namespace ThreadLocalEx
         {
             get
             {
-                if(_slot.initialized)
-                    return _slot.v;
-
-                if(_valueFactory != null)
+                try
                 {
+                    return _slot.v;
+                }
+                catch(NullReferenceException)
+                {
+                    if(_creating)
+                        _cached = new InvalidOperationException();
+
                     if(_cached != null)
                         throw _cached;
 
-                    try
+                    _creating = true;
+                    if(_valueFactory != null)
                     {
-                        _slot = new Box(_valueFactory());
+                        try
+                        {
+                            _slot = new Box(_valueFactory());
+                        }
+                        catch(Exception e)
+                        {
+                            _cached = e;
+                            throw;
+                        }
                     }
-                    catch(Exception e)
-                    {
-                        _cached = e;
-                        throw;
-                    }
-                }
-                else
-                    _slot = new Box(default(T));
+                    else
+                        _slot = new Box(default(T));
 
-                return _slot.v;
+                    _creating = false;
+                    return _slot.v;
+                }
             }
 
             set
