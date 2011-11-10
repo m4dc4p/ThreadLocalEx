@@ -1,7 +1,12 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System;
+using System.Runtime.Serialization;
+using System.Runtime.InteropServices;
+using System.Security.Permissions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,7 +19,7 @@ namespace ThreadLocalEx
             int i = 0, j = 0;
             string s = args.Length > 0 ? "1" : "0";
             var tl = new ThreadLocal<string>();
-            var tlx = new ThreadLocal<string>();
+            var tlx = new ThreadLocalEx<string>();
 
             int x = 0, y = 0;
 
@@ -58,19 +63,27 @@ namespace ThreadLocalEx
 
     public class ThreadLocalEx<T> : IDisposable
     {
-        ConcurrentDictionary<int, T> _dict;
+        [ThreadStatic]
+        static Box _slot;
+
+        class Box
+        {
+            public T v;
+            public Box(T x)
+            {
+                v = x;
+            }
+        }
+
         Func<T> _valueFactory;
         Exception _cached;
-        bool _creating;
 
         public ThreadLocalEx() 
         {
-            _dict = new ConcurrentDictionary<int, T>();
         }
 
         public ThreadLocalEx(Func<T> valueFactory)
         {
-            _dict = new ConcurrentDictionary<int, T>();
             _valueFactory = valueFactory;
         }
 
@@ -78,6 +91,7 @@ namespace ThreadLocalEx
         {
             Dispose(true);
         }
+
 
         protected virtual void Dispose(bool disposing)
         {
@@ -88,7 +102,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                return _dict.ContainsKey(Thread.CurrentThread.ManagedThreadId);
+                return _slot != null;
             }
         }
 
@@ -99,22 +113,18 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _dict[Thread.CurrentThread.ManagedThreadId];
+                    return _slot.v;
                 }
-                catch(KeyNotFoundException)
+                catch(NullReferenceException)
                 {
-                    if(_creating)
-                        _cached = new InvalidOperationException();
-
-                    if(_cached != null)
-                        throw _cached;
-
-                    _creating = true;
                     if(_valueFactory != null)
                     {
+                        if(_cached != null)
+                            throw _cached;
+
                         try
                         {
-                            _dict[Thread.CurrentThread.ManagedThreadId] = _valueFactory();
+                            _slot = new Box(_valueFactory());
                         }
                         catch(Exception e)
                         {
@@ -123,16 +133,15 @@ namespace ThreadLocalEx
                         }
                     }
                     else
-                        _dict[Thread.CurrentThread.ManagedThreadId] = default(T);
+                        _slot = new Box(default(T));
 
-                    _creating = false;
-                    return _dict[Thread.CurrentThread.ManagedThreadId];
+                    return _slot.v;
                 }
             }
 
             set
             {
-                _dict[Thread.CurrentThread.ManagedThreadId] = value;
+                _slot = new Box(value);
             }
         }
 
@@ -141,4 +150,124 @@ namespace ThreadLocalEx
             return string.Format("[ThreadLocalEx: IsValueCreated={0}, Value={1}]", IsValueCreated, Value);
         }
     }
+
+    //[HostProtection (SecurityAction.LinkDemand, Synchronization = true, ExternalThreading = true)]
+    //public class ThreadLocal<T> : IDisposable
+    //{
+    //    readonly Func<T> valueFactory;
+    //    LocalDataStoreSlot localStore;
+    //    Exception cachedException;
+		
+    //    class DataSlotWrapper
+    //    {
+    //        public bool Creating;
+    //        public bool Init;
+    //        public Func<T> Getter;
+    //    }
+		
+    //    public ThreadLocal () : this (LazyInitializer.GetDefaultValueFactory<T>)
+    //    {
+    //    }
+
+    //    public ThreadLocal (Func<T> valueFactory)
+    //    {
+    //        if (valueFactory == null)
+    //            throw new ArgumentNullException ("valueFactory");
+			
+    //        localStore = Thread.AllocateDataSlot ();
+    //        this.valueFactory = valueFactory;
+    //    }
+		
+    //    public void Dispose ()
+    //    {
+    //        Dispose (true);
+    //    }
+		
+    //    protected virtual void Dispose (bool disposing)
+    //    {
+			
+    //    }
+		
+    //    public bool IsValueCreated {
+    //        get {
+    //            ThrowIfNeeded ();
+    //            return IsInitializedThreadLocal ();
+    //        }
+    //    }
+
+    //    [System.Diagnostics.DebuggerBrowsableAttribute (System.Diagnostics.DebuggerBrowsableState.Never)]
+    //    public T Value {
+    //        get {
+    //            ThrowIfNeeded ();
+    //            return GetValueThreadLocal ();
+    //        }
+    //        set {
+    //            ThrowIfNeeded ();
+
+    //            DataSlotWrapper w = GetWrapper ();
+    //            w.Init = true;
+    //            w.Getter = () => value;
+    //        }
+    //    }
+		
+    //    public override string ToString ()
+    //    {
+    //        return string.Format ("[ThreadLocal: IsValueCreated={0}, Value={1}]", IsValueCreated, Value);
+    //    }
+		
+    //    T GetValueThreadLocal ()
+    //    {
+    //        DataSlotWrapper myWrapper = GetWrapper ();
+    //        if (myWrapper.Creating)
+    //            throw new InvalidOperationException ("The initialization function attempted to reference Value recursively");
+
+    //        return myWrapper.Getter ();
+    //    }
+		
+    //    bool IsInitializedThreadLocal ()
+    //    {
+    //        DataSlotWrapper myWrapper = GetWrapper ();
+
+    //        return myWrapper.Init;
+    //    }
+
+    //    DataSlotWrapper GetWrapper ()
+    //    {
+    //        DataSlotWrapper myWrapper = (DataSlotWrapper)Thread.GetData (localStore);
+    //        if (myWrapper == null) {
+    //            myWrapper = DataSlotCreator ();
+    //            Thread.SetData (localStore, myWrapper);
+    //        }
+
+    //        return myWrapper;
+    //    }
+
+    //    void ThrowIfNeeded ()
+    //    {
+    //        if (cachedException != null)
+    //            throw cachedException;
+    //    }
+
+    //    DataSlotWrapper DataSlotCreator ()
+    //    {
+    //        DataSlotWrapper wrapper = new DataSlotWrapper ();
+    //        Func<T> valSelector = valueFactory;
+	
+    //        wrapper.Getter = delegate {
+    //            wrapper.Creating = true;
+    //            try {
+    //                T val = valSelector ();
+    //                wrapper.Creating = false;
+    //                wrapper.Init = true;
+    //                wrapper.Getter = () => val;
+    //                return val;
+    //            } catch (Exception e) {
+    //                cachedException = e;
+    //                throw e;
+    //            }
+    //        };
+			
+    //        return wrapper;
+    //    }
+    //}
 }
