@@ -63,9 +63,6 @@ namespace ThreadLocalEx
 
     public class ThreadLocalEx<T> : IDisposable
     {
-        [ThreadStatic]
-        static Box<T> _result;
-        
         sealed class Box<T>
         {
             public T Val;
@@ -79,8 +76,14 @@ namespace ThreadLocalEx
 
         Func<T> _valueFactory;
         Exception _cached;
+        static LocalDataStoreSlot _slot;
 
-        public ThreadLocalEx () 
+        static ThreadLocalEx()
+        {
+            _slot = Thread.AllocateDataSlot();
+        }
+
+        public ThreadLocalEx() 
         {
         }
 
@@ -104,7 +107,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                return _result != null;
+                return Thread.GetData(_slot) != null;
             }
         }
 
@@ -115,7 +118,7 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _result.Val;
+                    return ((Box<T>) Thread.GetData(_slot)).Val;
                 }
                 catch(NullReferenceException)
                 {
@@ -126,7 +129,7 @@ namespace ThreadLocalEx
 
                         try
                         {
-                            _result = new Box<T>(_valueFactory());
+                            Thread.SetData(_slot, new Box<T>(_valueFactory()));
                         }
                         catch(Exception e)
                         {
@@ -135,15 +138,15 @@ namespace ThreadLocalEx
                         }
                     }
                     else
-                        _result = new Box<T>();
+                        Thread.SetData(_slot, new Box<T>());
 
-                    return _result.Val;
+                    return ((Box<T>) Thread.GetData(_slot)).Val;
                 }
             }
 
             set
             {
-                _result = new Box<T>(value);
+                Thread.SetData(_slot, new Box<T>(value));
             }
         }
 
