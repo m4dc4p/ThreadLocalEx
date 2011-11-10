@@ -64,11 +64,11 @@ namespace ThreadLocalEx
     public class ThreadLocalEx<T> : IDisposable
     {
         [ThreadStatic]
-        static Box? _slot;
+        static Box _slot;
         Func<T> _valueFactory;
         Exception _cached;
 
-        struct Box
+        class Box
         {
             public T v;
             public Box(T x)
@@ -101,7 +101,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                return _slot.HasValue;
+                return _slot != null;
             }
         }
 
@@ -110,28 +110,32 @@ namespace ThreadLocalEx
         {
             get
             {
-                if(_slot.HasValue)
-                    return _slot.Value.v;
-
-                if(_valueFactory != null)
+                try
                 {
-                    if(_cached != null)
-                        throw _cached;
-
-                    try
-                    {
-                        _slot = new Box(_valueFactory());
-                    }
-                    catch(Exception e)
-                    {
-                        _cached = e;
-                        throw;
-                    }
+                    return _slot.v;
                 }
-                else
-                    _slot = new Box(default(T));
+                catch(NullReferenceException)
+                {
+                    if(_valueFactory != null)
+                    {
+                        if(_cached != null)
+                            throw _cached;
 
-                return _slot.Value.v;
+                        try
+                        {
+                            _slot = new Box(_valueFactory());
+                        }
+                        catch(Exception e)
+                        {
+                            _cached = e;
+                            throw;
+                        }
+                    }
+                    else
+                        _slot = new Box(default(T));
+
+                    return _slot.v;
+                }
             }
 
             set
