@@ -63,14 +63,22 @@ namespace ThreadLocalEx
 
     public class ThreadLocalEx<T> : IDisposable
     {
-        [ThreadStatic]
-        static ConcurrentDictionary<int, T> _slot;
-
+        static ConcurrentDictionary<Int32, T> _slot;
         static int _instanceId;
+        static int _threadId;
+
+        [ThreadStatic]
+        static UInt16? _tid;
+
+        static ThreadLocalEx()
+        {
+            _slot = new ConcurrentDictionary<Int32, T>(Environment.ProcessorCount * 2,
+                    Environment.ProcessorCount * 20);
+        }
 
         readonly Func<T> _valueFactory;
         Exception _cached;
-        int _id;
+        readonly UInt16 _id;
 
         public ThreadLocalEx() 
         {
@@ -79,11 +87,15 @@ namespace ThreadLocalEx
         public ThreadLocalEx(Func<T> valueFactory)
         {
             _valueFactory = valueFactory;
-            _id = Interlocked.Increment(ref _instanceId);
+            unchecked
+            {
+                _id = (UInt16) Interlocked.Increment(ref _instanceId);
+            }
         }
 
         public void Dispose()
         {
+            // TODO: Remove all dictionary entries for this instance.
             Dispose(true);
         }
 
@@ -114,15 +126,16 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _slot[_id];
+                    return _slot[_tid.Value << 16 | _id];
                 }
                 catch(Exception e)
                 {
-                    if(_slot != null && _slot.ContainsKey(_id))
+                    if(!_tid.HasValue) unchecked {
+                        _tid = (UInt16) Interlocked.Increment(ref _threadId);
+                    }
+
+                    if(_slot.ContainsKey(_tid.Value << 16 | _id))
                         _cached = e;
-                    else if(_slot == null)
-                        _slot = new ConcurrentDictionary<int, T>(Environment.ProcessorCount * 2,
-                            Environment.ProcessorCount * 20);
 
                     if(_cached != null)
                         throw _cached;
@@ -131,19 +144,19 @@ namespace ThreadLocalEx
                     {
                         try
                         {
-                            _slot[_id] = _valueFactory();
+                            _slot[_tid.Value << 16 | _id] = _valueFactory();
                         }
                         catch(Exception x)
                         {
-                            _slot[_id] = default(T);
+                            _slot[_tid.Value << 16 | _id] = default(T);
                             _cached = x;
                             throw;
                         }
                     }
                     else
-                        _slot[_id] = default(T);
+                        _slot[_tid.Value << 16 | _id] = default(T);
 
-                    return _slot[_id]; 
+                    return _slot[_tid.Value << 16 | _id]; 
                 }
             }
 
@@ -152,11 +165,11 @@ namespace ThreadLocalEx
                 if(_cached != null)
                     throw _cached;
 
-                if(_slot == null)
-                    _slot = new ConcurrentDictionary<int, T>(Environment.ProcessorCount * 2,
-                        Environment.ProcessorCount * 20);
+                if(! _tid.HasValue) unchecked {
+                    _tid = (UInt16) Interlocked.Increment(ref _threadId);
+                }
 
-                _slot[_id] = value;
+                _slot[_tid.Value << 16 | _id] = value;
             }
         }
 
