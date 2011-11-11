@@ -64,11 +64,11 @@ namespace ThreadLocalEx
     public class ThreadLocalEx<T> : IDisposable
     {
         static ConcurrentDictionary<Int32, T> _slot;
-        static int _instanceId;
-        static int _threadId;
+        static int _instanceId = 1;
+        static int _threadId = 1;
 
         [ThreadStatic]
-        static UInt16? _tid;
+        static UInt16 _tid;
 
         static ThreadLocalEx()
         {
@@ -126,15 +126,15 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _slot[_tid.Value << 16 | _id];
+                    return _slot[_tid << 16 | _id];
                 }
                 catch(Exception e)
                 {
-                    if(!_tid.HasValue) unchecked {
+                    if(_tid == 0) unchecked {
                         _tid = (UInt16) Interlocked.Increment(ref _threadId);
                     }
 
-                    if(_slot.ContainsKey(_tid.Value << 16 | _id))
+                    if(_slot.ContainsKey(_tid << 16 | _id))
                         _cached = e;
 
                     if(_cached != null)
@@ -144,19 +144,19 @@ namespace ThreadLocalEx
                     {
                         try
                         {
-                            _slot[_tid.Value << 16 | _id] = _valueFactory();
+                            _slot[_tid << 16 | _id] = _valueFactory();
                         }
                         catch(Exception x)
                         {
-                            _slot[_tid.Value << 16 | _id] = default(T);
+                            _slot[_tid << 16 | _id] = default(T);
                             _cached = x;
                             throw;
                         }
                     }
                     else
-                        _slot[_tid.Value << 16 | _id] = default(T);
+                        _slot[_tid << 16 | _id] = default(T);
 
-                    return _slot[_tid.Value << 16 | _id]; 
+                    return _slot[_tid << 16 | _id]; 
                 }
             }
 
@@ -165,11 +165,11 @@ namespace ThreadLocalEx
                 if(_cached != null)
                     throw _cached;
 
-                if(! _tid.HasValue) unchecked {
+                if(_tid == 0) unchecked {
                     _tid = (UInt16) Interlocked.Increment(ref _threadId);
                 }
 
-                _slot[_tid.Value << 16 | _id] = value;
+                _slot[_tid << 16 | _id] = value;
             }
         }
 
