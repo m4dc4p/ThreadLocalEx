@@ -1,0 +1,12 @@
+bench3 -- ThreadStatic sealed class (be6eb264a3c2c58c7475974da9914d2ce39608f0)
+bench4 -- LocalDataStoreSlot (67482ce40b57daebc579b61711fd18a9d2dadfe4)
+bench5 -- ThreadStatic struct, checking for null (330fd9e2cbf9399de34ec05a5dba8b1e318a8098)
+bench6 -- ThreadStatic class, NullReferenceException (133a2b0fa75ac594ef4001fd592750f876cd0e44) (just like bench3)
+bench7 -- Static array holds value (858d22992ff4ed474ccd240d22dafd9c67ed7b6e)
+Compiler crash -- f6804d8a130ed51fcc4aa2e4f34a30c8ceb00d68
+bench8 -- Non-generic class, NullReferenceException (1186ddad6d20e9722e7334c71dc3e7325c05f6e9)
+bench9 -- Non-generic class, testing for null (278440f)
+bench10 -- Non-generic struct with flag (64fb490)
+bench11 -- Back to bench8, with full semantics (6f18d8b)
+bench12 -- No op test (e8bbab1)
+bench13 -- Concurrent dictionary (a2374fd)
