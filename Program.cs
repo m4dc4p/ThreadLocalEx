@@ -63,7 +63,7 @@ namespace ThreadLocalEx
 
     public class ThreadLocalEx<T> : IDisposable
     {
-        static ConcurrentDictionary<Int32, T> _slot;
+        static Box<T>[,] _slot;
         static int _instanceId = 1;
         static int _threadId = 1;
 
@@ -72,13 +72,22 @@ namespace ThreadLocalEx
 
         static ThreadLocalEx()
         {
-            _slot = new ConcurrentDictionary<Int32, T>(Environment.ProcessorCount * 2,
-                    Environment.ProcessorCount * 20);
+            _slot = new Box<T>[Environment.ProcessorCount * 20, Environment.ProcessorCount * 20];
         }
 
         readonly Func<T> _valueFactory;
         Exception _cached;
         readonly UInt16 _id;
+
+        class Box<T>
+        {
+            public T v;
+
+            public Box(T value)
+            {
+                v = value;
+            }
+        }
 
         public ThreadLocalEx() 
         {
@@ -110,7 +119,7 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _slot.ContainsKey(_id);
+                    return _slot[_tid,_id] != null;
                 }
                 catch(Exception)
                 {
@@ -126,37 +135,37 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _slot[_tid << 16 | _id];
+                    return _slot[_tid, _id].v;
                 }
                 catch(Exception e)
                 {
-                    if(_tid == 0) unchecked {
-                        _tid = (UInt16) Interlocked.Increment(ref _threadId);
-                    }
+                    //if(_tid == 0) unchecked {
+                    //    _tid = (UInt16) Interlocked.Increment(ref _threadId);
+                    //}
 
-                    if(_slot.ContainsKey(_tid << 16 | _id))
-                        _cached = e;
+                    //if(_slot.ContainsKey(_tid << 16 | _id))
+                    //    _cached = e;
 
-                    if(_cached != null)
-                        throw _cached;
+                    //if(_cached != null)
+                    //    throw _cached;
 
-                    if(_valueFactory != null)
-                    {
-                        try
-                        {
-                            _slot[_tid << 16 | _id] = _valueFactory();
-                        }
-                        catch(Exception x)
-                        {
-                            _slot[_tid << 16 | _id] = default(T);
-                            _cached = x;
-                            throw;
-                        }
-                    }
-                    else
-                        _slot[_tid << 16 | _id] = default(T);
+                    //if(_valueFactory != null)
+                    //{
+                    //    try
+                    //    {
+                    //        _slot[_tid << 16 | _id] = _valueFactory();
+                    //    }
+                    //    catch(Exception x)
+                    //    {
+                    //        _slot[_tid << 16 | _id] = default(T);
+                    //        _cached = x;
+                    //        throw;
+                    //    }
+                    //}
+                    //else
+                    //    _slot[_tid << 16 | _id] = default(T);
 
-                    return _slot[_tid << 16 | _id]; 
+                    return _slot[_tid, _id].v; 
                 }
             }
 
@@ -169,7 +178,7 @@ namespace ThreadLocalEx
                     _tid = (UInt16) Interlocked.Increment(ref _threadId);
                 }
 
-                _slot[_tid << 16 | _id] = value;
+                _slot[_tid, _id] = new Box<T>(value);
             }
         }
 
