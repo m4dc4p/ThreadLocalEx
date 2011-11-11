@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -64,19 +64,13 @@ namespace ThreadLocalEx
     public class ThreadLocalEx<T> : IDisposable
     {
         [ThreadStatic]
-        static Box _slot;
+        static ConcurrentDictionary<int, T> _slot;
 
-        class Box
-        {
-            public T v;
-            public Box(T x)
-            {
-                v = x;
-            }
-        }
+        static int _instanceId;
 
-        Func<T> _valueFactory;
+        readonly Func<T> _valueFactory;
         Exception _cached;
+        int _id;
 
         public ThreadLocalEx() 
         {
@@ -85,13 +79,13 @@ namespace ThreadLocalEx
         public ThreadLocalEx(Func<T> valueFactory)
         {
             _valueFactory = valueFactory;
+            _id = Interlocked.Increment(ref _instanceId);
         }
 
         public void Dispose()
         {
             Dispose(true);
         }
-
 
         protected virtual void Dispose(bool disposing)
         {
@@ -102,7 +96,14 @@ namespace ThreadLocalEx
         {
             get
             {
-                return _slot != null;
+                try
+                {
+                    return _slot.ContainsKey(_id);
+                }
+                catch(Exception)
+                {
+                    return false;
+                }
             }
         }
 
@@ -113,35 +114,49 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _slot.v;
+                    return _slot[_id];
                 }
-                catch(NullReferenceException)
+                catch(Exception e)
                 {
+                    if(_slot != null && _slot.ContainsKey(_id))
+                        _cached = e;
+                    else if(_slot == null)
+                        _slot = new ConcurrentDictionary<int, T>(Environment.ProcessorCount * 2,
+                            Environment.ProcessorCount * 20);
+
+                    if(_cached != null)
+                        throw _cached;
+
                     if(_valueFactory != null)
                     {
-                        if(_cached != null)
-                            throw _cached;
-
                         try
                         {
-                            _slot = new Box(_valueFactory());
+                            _slot[_id] = _valueFactory();
                         }
-                        catch(Exception e)
+                        catch(Exception x)
                         {
-                            _cached = e;
+                            _slot[_id] = default(T);
+                            _cached = x;
                             throw;
                         }
                     }
                     else
-                        _slot = new Box(default(T));
+                        _slot[_id] = default(T);
 
-                    return _slot.v;
+                    return _slot[_id]; 
                 }
             }
 
             set
             {
-                _slot = new Box(value);
+                if(_cached != null)
+                    throw _cached;
+
+                if(_slot == null)
+                    _slot = new ConcurrentDictionary<int, T>(Environment.ProcessorCount * 2,
+                        Environment.ProcessorCount * 20);
+
+                _slot[_id] = value;
             }
         }
 
