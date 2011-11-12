@@ -135,37 +135,37 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _slot[_tid, _id].v;
+                    return _slot[_tid - 1, _id].v;
                 }
                 catch(Exception e)
                 {
-                    //if(_tid == 0) unchecked {
-                    //    _tid = (UInt16) Interlocked.Increment(ref _threadId);
-                    //}
+                    if(_tid == 0) unchecked
+                        {
+                            _tid = (UInt16) Interlocked.Increment(ref _threadId);
+                        }
 
-                    //if(_slot.ContainsKey(_tid << 16 | _id))
-                    //    _cached = e;
+                    if(_slot[_tid - 1, _id] != null)
+                        _cached = e;
 
-                    //if(_cached != null)
-                    //    throw _cached;
+                    if(_cached != null) 
+                        throw _cached;
 
-                    //if(_valueFactory != null)
-                    //{
-                    //    try
-                    //    {
-                    //        _slot[_tid << 16 | _id] = _valueFactory();
-                    //    }
-                    //    catch(Exception x)
-                    //    {
-                    //        _slot[_tid << 16 | _id] = default(T);
-                    //        _cached = x;
-                    //        throw;
-                    //    }
-                    //}
-                    //else
-                    //    _slot[_tid << 16 | _id] = default(T);
+                    if(_valueFactory != null)
+                    {
+                        try
+                        {
+                            _slot[_tid - 1, _id] = new Box<T>(_valueFactory());
+                        }
+                        catch(Exception x)
+                        {
+                            _cached = x;
+                            throw;
+                        }
+                    }
+                    else
+                        _slot[_tid - 1, _id] = new Box<T>(default(T));
 
-                    return _slot[_tid, _id].v; 
+                    return _slot[_tid - 1, _id].v; 
                 }
             }
 
@@ -178,7 +178,7 @@ namespace ThreadLocalEx
                     _tid = (UInt16) Interlocked.Increment(ref _threadId);
                 }
 
-                _slot[_tid, _id] = new Box<T>(value);
+                _slot[_tid - 1, _id] = new Box<T>(value);
             }
         }
 
