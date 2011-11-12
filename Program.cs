@@ -63,23 +63,12 @@ namespace ThreadLocalEx
 
     public class ThreadLocalEx<T> : IDisposable
     {
-        static Box<T>[,] _slot;
-        static int _instanceId = 1;
-        static int _threadId = 1;
-
-        [ThreadStatic]
-        static UInt16 _tid;
-
-        static ThreadLocalEx()
-        {
-            _slot = new Box<T>[Environment.ProcessorCount * 20, Environment.ProcessorCount * 20];
-        }
-
+        LocalDataStoreSlot _slot;
+        
         readonly Func<T> _valueFactory;
         Exception _cached;
-        readonly UInt16 _id;
 
-        class Box<T>
+        class Box
         {
             public T v;
 
@@ -91,20 +80,17 @@ namespace ThreadLocalEx
 
         public ThreadLocalEx() 
         {
+            _slot = Thread.AllocateDataSlot();
         }
 
         public ThreadLocalEx(Func<T> valueFactory)
         {
+            _slot = Thread.AllocateDataSlot();
             _valueFactory = valueFactory;
-            unchecked
-            {
-                _id = (UInt16) Interlocked.Increment(ref _instanceId);
-            }
         }
 
         public void Dispose()
         {
-            // TODO: Remove all dictionary entries for this instance.
             Dispose(true);
         }
 
@@ -117,14 +103,7 @@ namespace ThreadLocalEx
         {
             get
             {
-                try
-                {
-                    return _slot[_tid,_id] != null;
-                }
-                catch(Exception)
-                {
-                    return false;
-                }
+                return Thread.GetData(_slot) != null;
             }
         }
 
@@ -135,18 +114,10 @@ namespace ThreadLocalEx
             {
                 try
                 {
-                    return _slot[_tid - 1, _id].v;
+                    return ((Box) Thread.GetData(_slot)).v;
                 }
-                catch(Exception e)
+                catch(Exception)
                 {
-                    if(_tid == 0) unchecked
-                        {
-                            _tid = (UInt16) Interlocked.Increment(ref _threadId);
-                        }
-
-                    if(_slot[_tid - 1, _id] != null)
-                        _cached = e;
-
                     if(_cached != null) 
                         throw _cached;
 
@@ -154,7 +125,7 @@ namespace ThreadLocalEx
                     {
                         try
                         {
-                            _slot[_tid - 1, _id] = new Box<T>(_valueFactory());
+                            Thread.SetData(_slot, new Box(_valueFactory()));
                         }
                         catch(Exception x)
                         {
@@ -163,9 +134,9 @@ namespace ThreadLocalEx
                         }
                     }
                     else
-                        _slot[_tid - 1, _id] = new Box<T>(default(T));
+                        Thread.SetData(_slot, new Box(default(T)));
 
-                    return _slot[_tid - 1, _id].v; 
+                    return ((Box) Thread.GetData(_slot)).v;
                 }
             }
 
@@ -174,11 +145,7 @@ namespace ThreadLocalEx
                 if(_cached != null)
                     throw _cached;
 
-                if(_tid == 0) unchecked {
-                    _tid = (UInt16) Interlocked.Increment(ref _threadId);
-                }
-
-                _slot[_tid - 1, _id] = new Box<T>(value);
+                Thread.SetData(_slot, new Box(value));
             }
         }
 
